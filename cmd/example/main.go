@@ -35,7 +35,7 @@ func inspect(label string, id uniqidx.ID) {
 	fmt.Println("  text / both:    ", id.TextWith(uniqidx.ChecksumBoth))
 	fmt.Println("  numeric / V:    ", id.Numeric())
 	fmt.Println("  numeric / both: ", id.NumericWith(uniqidx.ChecksumBoth))
-	fmt.Printf("  fields: version=%d mode=%d time=%s sequence=%d token=%02x%016x\n", f.Version, f.Mode, must(id.V1Time()).Format(time.RFC3339Nano), f.Sequence, f.Token.Hi, f.Token.Lo)
+	fmt.Printf("  fields: version=%d mode=%d variant=%d time=%s sequence=%d token=%02x%016x\n", f.Version, f.Mode, f.Variant, must(id.V1Time()).Format(time.RFC3339Nano), f.Sequence, f.Token.Hi, f.Token.Lo)
 }
 
 func main() {
@@ -45,8 +45,18 @@ func main() {
 	offline := must(uniqidx.NewGenerator(ctx, uniqidx.Config{Mode: uniqidx.ModeOffline}))
 	defer offline.Close(ctx)
 	offlineID := must(offline.Next(ctx))
-	inspect("OFFLINE ID", offlineID)
+	inspect("OFFLINE STANDARD ID", offlineID)
 	fmt.Println("default ID verification:", uniqidx.ValidText(offlineID.Text()))
+
+	highThroughput := must(uniqidx.NewGenerator(ctx, uniqidx.Config{
+		Mode:    uniqidx.ModeOffline,
+		Variant: uniqidx.VariantHighThroughput,
+	}))
+	defer highThroughput.Close(ctx)
+	highThroughputID := must(highThroughput.Next(ctx))
+	inspect("OFFLINE HIGH-THROUGHPUT ID", highThroughputID)
+	highThroughputFields := must(highThroughputID.Fields())
+	fmt.Println("separate variant detected:", highThroughputFields.Variant == uniqidx.VariantHighThroughput)
 
 	// Memory is process-local: use a durable, strongly consistent provider in production.
 	provider := lease.NewMemory(30*time.Second, nil)

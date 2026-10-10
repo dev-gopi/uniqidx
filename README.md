@@ -40,7 +40,7 @@ go run ./cmd/example
 It shows:
 
 - Offline and coordinated generation
-- Full fields: version, mode, logical time, token, sequence
+- Full fields: version, mode, variant, logical time, token, sequence
 - Hex, Base32hex, Base64url, text, and numeric representations
 - Verhoeff, Luhn, and combined checksum parsing
 - Compact HMAC tokens and v1 signed-envelope verification
@@ -82,6 +82,7 @@ It intentionally uses offline mode and does not authenticate callers or persist 
 ## API map
 
 - `NewGenerator` / `Next` — issue IDs in coordinated or offline mode.
+- `Config.Variant` — select a two-bit variant without changing the 16-byte ID size.
 - `ID.Fields` — inspect version, mode, timestamp, token, and sequence.
 - `ID.Text` / `ID.Numeric` — canonical Verhoeff-protected values.
 - `TextWith` / `NumericWith` — choose Luhn or combined checksums.

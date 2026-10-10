@@ -66,7 +66,7 @@ func main() {
 		}
 		f, _ := id.Fields()
 		t, _ := id.V1Time()
-		fmt.Printf("hex=%s\nbase32=%s\nversion=%d\nmode=%d\ntime=%s\nsequence=%d\n", id.Hex(), id.Base32(), f.Version, f.Mode, t.Format("2006-01-02T15:04:05.000Z07:00"), f.Sequence)
+		fmt.Printf("hex=%s\nbase32=%s\nversion=%d\nmode=%d\nvariant=%d\ntime=%s\nsequence=%d\n", id.Hex(), id.Base32(), f.Version, f.Mode, f.Variant, t.Format("2006-01-02T15:04:05.000Z07:00"), f.Sequence)
 	case "sign":
 		if len(os.Args) != 4 {
 			usage()

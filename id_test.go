@@ -30,6 +30,38 @@ func TestV1Vectors(t *testing.T) {
 	}
 }
 
+func TestV1VariantKeeps128BitSizeAndToken(t *testing.T) {
+	token := Token69{Hi: 3, Lo: 0x3456789abcdef012}
+	for variant := VariantStandard; variant <= VariantExtendedRandom; variant++ {
+		id, err := packV1(1234567890, ModeOffline, variant, token, 7)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(id) != 16 {
+			t.Fatalf("ID size = %d, want 16", len(id))
+		}
+		fields, err := id.Fields()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fields.Version != Version1 || fields.Variant != variant || fields.Token != token {
+			t.Fatalf("variant %d decoded fields = %#v", variant, fields)
+		}
+		if got, err := id.V1Time(); err != nil || !got.Equal(epochV1.Add(1234567890*time.Millisecond)) {
+			t.Fatalf("variant %d decoded time = %v, error = %v", variant, got, err)
+		}
+	}
+}
+
+func TestV1VariantValidation(t *testing.T) {
+	if _, err := packV1(1, ModeOffline, Variant(4), Token69{}, 0); err != ErrVariant {
+		t.Fatalf("error = %v, want %v", err, ErrVariant)
+	}
+	if _, err := NewGenerator(context.Background(), Config{Mode: ModeOffline, Variant: Variant(4), Random: zeroReader{}}); err != ErrVariant {
+		t.Fatalf("generator error = %v, want %v", err, ErrVariant)
+	}
+}
+
 func TestDecimalDigits(t *testing.T) {
 	zeroDigits := (ID{}).decimalDigits()
 	if got := string(zeroDigits[:]); got != "000000000000000000000000000000000000000" {

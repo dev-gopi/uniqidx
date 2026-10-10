@@ -19,6 +19,15 @@ const (
 	ModeOffline
 )
 
+type Variant uint8
+
+const (
+	VariantStandard       Variant = 0
+	VariantHighPrecision  Variant = 1
+	VariantHighThroughput Variant = 2
+	VariantExtendedRandom Variant = 3
+)
+
 type Checksum uint8
 
 const (
@@ -38,12 +47,14 @@ type Fields struct {
 	TimeMS   uint64
 	Version  uint8
 	Mode     Mode
+	Variant  Variant
 	Token    Token69
 	Sequence uint16
 }
 
 var (
 	ErrMode          = errors.New("uniqidx: invalid mode")
+	ErrVariant       = errors.New("uniqidx: invalid variant")
 	ErrTokenRange    = errors.New("uniqidx: token outside 69-bit range")
 	ErrSequenceRange = errors.New("uniqidx: sequence outside 10-bit range")
 	ErrVersion       = errors.New("uniqidx: unsupported version")
@@ -51,12 +62,19 @@ var (
 )
 
 func PackV1(ms uint64, mode Mode, token Token69, seq uint16) (ID, error) {
+	return packV1(ms, mode, VariantStandard, token, seq)
+}
+
+func packV1(ms uint64, mode Mode, variant Variant, token Token69, seq uint16) (ID, error) {
 	var id ID
 	if ms >= 1<<44 {
 		return id, ErrTimestampRange
 	}
 	if mode > ModeOffline {
 		return id, ErrMode
+	}
+	if variant > VariantExtendedRandom {
+		return id, ErrVariant
 	}
 	if !token.Valid() {
 		return id, ErrTokenRange
@@ -65,7 +83,7 @@ func PackV1(ms uint64, mode Mode, token Token69, seq uint16) (ID, error) {
 		return id, ErrSequenceRange
 	}
 	top15 := uint64(token.Hi)<<10 | token.Lo>>54
-	hi := ms<<20 | uint64(Version1)<<16 | uint64(mode)<<15 | top15
+	hi := ms<<20 | uint64(Version1+uint8(variant))<<16 | uint64(mode)<<15 | top15
 	lo := (token.Lo&((uint64(1)<<54)-1))<<10 | uint64(seq)
 	binary.BigEndian.PutUint64(id[:8], hi)
 	binary.BigEndian.PutUint64(id[8:], lo)
@@ -75,12 +93,13 @@ func (id ID) Fields() (Fields, error) {
 	hi := binary.BigEndian.Uint64(id[:8])
 	lo := binary.BigEndian.Uint64(id[8:])
 	v := uint8((hi >> 16) & 15)
-	if v != Version1 {
+	if v < Version1 || v > Version1+uint8(VariantExtendedRandom) {
 		return Fields{}, ErrVersion
 	}
 	mode := Mode((hi >> 15) & 1)
+	variant := Variant(v - Version1)
 	token := Token69{Hi: uint8((hi & 0x7fff) >> 10), Lo: (hi&0x3ff)<<54 | lo>>10}
-	return Fields{TimeMS: hi >> 20, Version: v, Mode: mode, Token: token, Sequence: uint16(lo & 0x3ff)}, nil
+	return Fields{TimeMS: hi >> 20, Version: Version1, Mode: mode, Variant: variant, Token: token, Sequence: uint16(lo & 0x3ff)}, nil
 }
 func (id ID) V1Time() (time.Time, error) {
 	f, e := id.Fields()
@@ -111,6 +130,7 @@ type RenewableLeaseProvider interface {
 }
 type Config struct {
 	Mode            Mode
+	Variant         Variant
 	LeaseProvider   LeaseProvider
 	Clock           Clock
 	Random          io.Reader
@@ -124,6 +144,7 @@ type Generator struct {
 	provider            LeaseProvider
 	clock               Clock
 	drift               time.Duration
+	variant             Variant
 	initialized, closed bool
 	logical             uint64
 	sequence            uint16
@@ -136,7 +157,10 @@ func NewGenerator(ctx context.Context, c Config) (*Generator, error) {
 	if c.MaxLogicalDrift <= 0 {
 		c.MaxLogicalDrift = 5 * time.Second
 	}
-	g := &Generator{mode: c.Mode, provider: c.LeaseProvider, clock: c.Clock, drift: c.MaxLogicalDrift}
+	g := &Generator{mode: c.Mode, variant: c.Variant, provider: c.LeaseProvider, clock: c.Clock, drift: c.MaxLogicalDrift}
+	if c.Variant > VariantExtendedRandom {
+		return nil, ErrVariant
+	}
 	if c.Mode == ModeCoordinated {
 		if c.LeaseProvider == nil {
 			return nil, errors.New("uniqidx: coordinated mode requires a lease provider")
@@ -200,7 +224,7 @@ func (g *Generator) Next(ctx context.Context) (ID, error) {
 	if logical > wall && logical-wall > uint64(g.drift/time.Millisecond) {
 		return ID{}, ErrClockDrift
 	}
-	id, e := PackV1(logical, g.mode, g.token, sequence)
+	id, e := packV1(logical, g.mode, g.variant, g.token, sequence)
 	if e != nil {
 		return ID{}, e
 	}
