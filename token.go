@@ -74,6 +74,9 @@ func parseKeyID(s string) (uint32, error) {
 	n, e := strconv.ParseUint(s, 16, 32)
 	return uint32(n), e
 }
+
+// SignHMAC creates the compact ux1h authenticated envelope.
+// Deprecated: prefer Sign with a SigningKeyring and the canonical ux1s format.
 func SignHMAC(id ID, context string, key HMACKey) (string, error) {
 	if e := id.ValidateStructure(); e != nil {
 		return "", e
@@ -90,6 +93,9 @@ func SignHMAC(id ID, context string, key HMACKey) (string, error) {
 	m.Write(id[:])
 	return hmacPrefix + "." + keyIDText(key.ID) + "." + id.Base64URL() + "." + base64.RawURLEncoding.EncodeToString(m.Sum(nil)[:16]), nil
 }
+
+// VerifyHMAC verifies a compact ux1h authenticated envelope.
+// Deprecated: prefer Verify with a SigningKeyring and the canonical ux1s format.
 func VerifyHMAC(token, context string, keys Keyring) (ID, error) {
 	var z ID
 	if len(token) != 59 {

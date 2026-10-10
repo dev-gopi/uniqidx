@@ -91,7 +91,10 @@ func (id ID) V1Time() (time.Time, error) {
 }
 
 type Lease struct {
-	Token     Token69
+	Token Token69
+	// ID is an unguessable lease ownership handle. Coordinators must require it
+	// for renew/release so observing an ID token is not enough to extend a lease.
+	ID        [16]byte
 	ExpiresAt time.Time
 }
 type LeaseProvider interface {

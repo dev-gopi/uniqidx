@@ -59,10 +59,14 @@ func (m *Memory) Acquire(ctx context.Context) (uniqidx.Lease, error) {
 		if _, used := m.issued[t]; used {
 			continue
 		}
+		var leaseID [16]byte
+		if _, e := io.ReadFull(m.random, leaseID[:]); e != nil {
+			return uniqidx.Lease{}, e
+		}
 		expires := now.Add(m.ttl)
 		m.issued[t] = struct{}{}
 		m.active[t] = expires
-		return uniqidx.Lease{Token: t, ExpiresAt: expires}, nil
+		return uniqidx.Lease{Token: t, ID: leaseID, ExpiresAt: expires}, nil
 	}
 	return uniqidx.Lease{}, ErrTokenExhausted
 }

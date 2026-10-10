@@ -17,3 +17,16 @@ CREATE TABLE orders (
 ```
 
 `ID.Value()` and `ID.Scan()` bind raw binary values through `database/sql`. JSON uses `MarshalText`, which emits canonical `UX1V-...` text. Never emit a 128-bit ID as a JSON number; JavaScript numeric values cannot represent it exactly.
+
+## MongoDB
+
+Use BSON binary data, not the UUID subtype, because UniqID-X is not a UUID. Use generic binary subtype `0` for broad driver interoperability, or a documented custom subtype where tooling supports it. Add a unique index (MongoDB automatically makes `_id` unique):
+
+```javascript
+{
+  _id: BinData(0, "<16 raw UniqID-X bytes>"),
+  created_at: ISODate("2026-01-01T00:00:00Z")
+}
+```
+
+Keep `created_at` for date queries and audit semantics. Treat the binary ID as an opaque 16-byte value in MongoDB drivers.

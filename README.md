@@ -1,6 +1,6 @@
 # UniqID-X
 
-UniqID-X is a Go package for 16-byte, time-sortable identifiers. It combines sequential database-friendly IDs, coordinated or offline generation, human typo checks, optional tamper-proof HMAC signatures, and optional AES-GCM confidentiality.
+UniqID-X is a Go package for 16-byte, time-sortable identifiers. It combines sequential database-friendly IDs, coordinated or offline generation, human typo checks, optional tamper-evident HMAC authentication, and optional AES-GCM confidentiality.
 
 It is not a UUID. Store it as raw 16-byte binary (`BYTEA` or `BINARY(16)`) and always use a database `PRIMARY KEY` or `UNIQUE` constraint.
 
@@ -49,6 +49,36 @@ It shows:
 
 The example uses in-memory keys and `lease.NewMemory`, which is process-local and suitable only for examples/tests. Production coordinated mode requires a durable, strongly consistent `LeaseProvider` that never reissues tokens. Use a KMS, Vault, HSM, or equivalent secret-management system for keys.
 
+## CLI
+
+The included local CLI supports offline generation and strict inspection/validation:
+
+```sh
+go run ./cmd/uniqidx generate
+go run ./cmd/uniqidx validate 'UX1V-...'
+go run ./cmd/uniqidx inspect 'UX1V-...'
+```
+
+It also supports the canonical `ux1s` HMAC envelope. Provide a 32-byte hexadecimal secret through `UNIQIDX_HMAC_KEY`; never pass secrets as command-line arguments.
+
+```sh
+export UNIQIDX_HMAC_KEY='0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+go run ./cmd/uniqidx sign 'UX1V-...' orders/update
+go run ./cmd/uniqidx verify 'ux1s.env....' orders/update
+```
+
+## HTTP example
+
+A minimal standard-library HTTP example is included for integration testing:
+
+```sh
+go run ./cmd/http
+curl -X POST http://localhost:8080/v1/ids
+curl 'http://localhost:8080/v1/ids/UX1V-.../validate'
+```
+
+It intentionally uses offline mode and does not authenticate callers or persist IDs; it is an API-shape example, not a production service.
+
 ## API map
 
 - `NewGenerator` / `Next` — issue IDs in coordinated or offline mode.
@@ -58,7 +88,7 @@ The example uses in-memory keys and `lease.NewMemory`, which is process-local an
 - `ParseText`, `ParseNumeric`, `ParseBase32`, `ParseBase64URL`, `ParseHex` — strict parsers.
 - `ValidText` / `ValidNumeric` — simple `true`/`false` checksum and format validation.
 - `Sign` / `Verify` — rotatable-key `ux1s` HMAC signed envelope.
-- `SignHMAC` / `VerifyHMAC` — compact numeric-key HMAC envelope.
+- `SignHMAC` / `VerifyHMAC` — legacy compact numeric-key HMAC envelope; prefer `Sign` / `Verify` for new APIs.
 - `NewAEADSigner`, `Seal`, `OpenAEAD` — AES-256-GCM confidential envelope.
 - `ID.Value` / `ID.Scan` — `database/sql` binary integration.
 
