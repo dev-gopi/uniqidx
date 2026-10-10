@@ -62,6 +62,46 @@ func TestV1VariantValidation(t *testing.T) {
 	}
 }
 
+func TestVariantNames(t *testing.T) {
+	tests := []struct {
+		variant Variant
+		name    string
+	}{
+		{VariantStandard, "Standard"},
+		{VariantHighPrecision, "High Precision"},
+		{VariantHighThroughput, "High Throughput"},
+		{VariantExtendedRandom, "Extended Random"},
+	}
+	for _, test := range tests {
+		if !test.variant.Valid() || test.variant.String() != test.name {
+			t.Fatalf("variant %d: valid=%t, name=%q", test.variant, test.variant.Valid(), test.variant.String())
+		}
+	}
+	if Variant(4).Valid() || Variant(4).String() != "Unknown" {
+		t.Fatal("invalid variant accepted")
+	}
+}
+
+func TestVariantProfiles(t *testing.T) {
+	for variant := VariantStandard; variant <= VariantExtendedRandom; variant++ {
+		profile, err := variant.Profile()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if profile.Name != variant.String() ||
+			profile.TimestampBits != 44 ||
+			profile.TimestampResolution != time.Millisecond ||
+			profile.TokenBits != 69 ||
+			profile.SequenceBits != 10 ||
+			profile.MaxIDsPerMillisecond != 1024 {
+			t.Fatalf("variant %d profile = %#v", variant, profile)
+		}
+	}
+	if _, err := Variant(4).Profile(); err != ErrVariant {
+		t.Fatalf("profile error = %v, want %v", err, ErrVariant)
+	}
+}
+
 func TestDecimalDigits(t *testing.T) {
 	zeroDigits := (ID{}).decimalDigits()
 	if got := string(zeroDigits[:]); got != "000000000000000000000000000000000000000" {

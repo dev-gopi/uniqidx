@@ -28,6 +28,48 @@ const (
 	VariantExtendedRandom Variant = 3
 )
 
+func (v Variant) Valid() bool { return v <= VariantExtendedRandom }
+
+func (v Variant) String() string {
+	switch v {
+	case VariantStandard:
+		return "Standard"
+	case VariantHighPrecision:
+		return "High Precision"
+	case VariantHighThroughput:
+		return "High Throughput"
+	case VariantExtendedRandom:
+		return "Extended Random"
+	default:
+		return "Unknown"
+	}
+}
+
+// VariantProfile describes the fixed v1 capacity available to a variant.
+// Variant selection changes the declared profile, not the wire field widths.
+type VariantProfile struct {
+	Name                 string
+	TimestampBits        uint8
+	TimestampResolution  time.Duration
+	TokenBits            uint8
+	SequenceBits         uint8
+	MaxIDsPerMillisecond uint16
+}
+
+func (v Variant) Profile() (VariantProfile, error) {
+	if !v.Valid() {
+		return VariantProfile{}, ErrVariant
+	}
+	return VariantProfile{
+		Name:                 v.String(),
+		TimestampBits:        44,
+		TimestampResolution:  time.Millisecond,
+		TokenBits:            69,
+		SequenceBits:         10,
+		MaxIDsPerMillisecond: 1 << 10,
+	}, nil
+}
+
 type Checksum uint8
 
 const (
@@ -73,7 +115,7 @@ func packV1(ms uint64, mode Mode, variant Variant, token Token69, seq uint16) (I
 	if mode > ModeOffline {
 		return id, ErrMode
 	}
-	if variant > VariantExtendedRandom {
+	if !variant.Valid() {
 		return id, ErrVariant
 	}
 	if !token.Valid() {
@@ -158,7 +200,7 @@ func NewGenerator(ctx context.Context, c Config) (*Generator, error) {
 		c.MaxLogicalDrift = 5 * time.Second
 	}
 	g := &Generator{mode: c.Mode, variant: c.Variant, provider: c.LeaseProvider, clock: c.Clock, drift: c.MaxLogicalDrift}
-	if c.Variant > VariantExtendedRandom {
+	if !c.Variant.Valid() {
 		return nil, ErrVariant
 	}
 	if c.Mode == ModeCoordinated {
