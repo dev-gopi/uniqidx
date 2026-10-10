@@ -23,8 +23,13 @@ type Memory struct {
 	mu     sync.Mutex
 	ttl    time.Duration
 	random io.Reader
-	active map[uniqidx.Token69]time.Time
+	active map[uniqidx.Token69]activeLease
 	issued map[uniqidx.Token69]struct{}
+}
+
+type activeLease struct {
+	id        [16]byte
+	expiresAt time.Time
 }
 
 func NewMemory(ttl time.Duration, random io.Reader) *Memory {
@@ -34,7 +39,7 @@ func NewMemory(ttl time.Duration, random io.Reader) *Memory {
 	if random == nil {
 		random = rand.Reader
 	}
-	return &Memory{ttl: ttl, random: random, active: make(map[uniqidx.Token69]time.Time), issued: make(map[uniqidx.Token69]struct{})}
+	return &Memory{ttl: ttl, random: random, active: make(map[uniqidx.Token69]activeLease), issued: make(map[uniqidx.Token69]struct{})}
 }
 func (m *Memory) Acquire(ctx context.Context) (uniqidx.Lease, error) {
 	if e := ctx.Err(); e != nil {
@@ -45,8 +50,8 @@ func (m *Memory) Acquire(ctx context.Context) (uniqidx.Lease, error) {
 	now := time.Now()
 	// Expired active entries have no further liveness meaning. `issued` is
 	// deliberately never pruned: reusing a token would violate uniqueness.
-	for token, expires := range m.active {
-		if !now.Before(expires) {
+	for token, lease := range m.active {
+		if !now.Before(lease.expiresAt) {
 			delete(m.active, token)
 		}
 	}
@@ -65,7 +70,7 @@ func (m *Memory) Acquire(ctx context.Context) (uniqidx.Lease, error) {
 		}
 		expires := now.Add(m.ttl)
 		m.issued[t] = struct{}{}
-		m.active[t] = expires
+		m.active[t] = activeLease{id: leaseID, expiresAt: expires}
 		return uniqidx.Lease{Token: t, ID: leaseID, ExpiresAt: expires}, nil
 	}
 	return uniqidx.Lease{}, ErrTokenExhausted
@@ -80,13 +85,17 @@ func (m *Memory) RenewLease(ctx context.Context, l uniqidx.Lease) (uniqidx.Lease
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	expires, ok := m.active[l.Token]
-	if !ok || !time.Now().Before(expires) {
+	active, ok := m.active[l.Token]
+	if !ok || active.id != l.ID {
+		return uniqidx.Lease{}, ErrUnknownLease
+	}
+	if !time.Now().Before(active.expiresAt) {
 		delete(m.active, l.Token)
 		return uniqidx.Lease{}, ErrUnknownLease
 	}
-	expires = time.Now().Add(m.ttl)
-	m.active[l.Token] = expires
+	expires := time.Now().Add(m.ttl)
+	active.expiresAt = expires
+	m.active[l.Token] = active
 	l.ExpiresAt = expires
 	return l, nil
 }
@@ -95,6 +104,11 @@ func (m *Memory) Release(ctx context.Context, l uniqidx.Lease) error {
 		return e
 	}
 	m.mu.Lock()
+	active, ok := m.active[l.Token]
+	if !ok || active.id != l.ID {
+		m.mu.Unlock()
+		return ErrUnknownLease
+	}
 	delete(m.active, l.Token)
 	m.mu.Unlock()
 	return nil

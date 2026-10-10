@@ -47,7 +47,7 @@ It shows:
 - AES-256-GCM encryption/decryption
 - Lease renewal and `database/sql` raw-byte round trips
 
-The example uses in-memory keys and `lease.NewMemory`, which is process-local and suitable only for examples/tests. Production coordinated mode requires a durable, strongly consistent `LeaseProvider` that never reissues tokens. Use a KMS, Vault, HSM, or equivalent secret-management system for keys.
+The example uses in-memory keys and `lease.NewMemory`, which is process-local and suitable only for examples/tests. It enforces the lease ownership handle for renew/release, but cannot preserve allocation history across process restarts. Production coordinated mode requires a durable, strongly consistent `LeaseProvider` that never reissues tokens. Use a KMS, Vault, HSM, or equivalent secret-management system for keys.
 
 ## CLI
 
