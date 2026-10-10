@@ -19,6 +19,9 @@ func VerhoeffDigit(s string) byte {
 	if !allDigits(s) {
 		panic("uniqidx: VerhoeffDigit requires decimal digits")
 	}
+	return verhoeffDigitBytes([]byte(s))
+}
+func verhoeffDigitBytes(s []byte) byte {
 	var c uint8
 	for i, j := 0, len(s)-1; j >= 0; i, j = i+1, j-1 {
 		c = verhoeffD[c][verhoeffP[(i+1)%8][s[j]-'0']]
@@ -39,6 +42,9 @@ func LuhnDigit(s string) byte {
 	if !allDigits(s) {
 		panic("uniqidx: LuhnDigit requires decimal digits")
 	}
+	return luhnDigitBytes([]byte(s))
+}
+func luhnDigitBytes(s []byte) byte {
 	sum := 0
 	dbl := true
 	for i := len(s) - 1; i >= 0; i-- {

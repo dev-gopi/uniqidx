@@ -30,6 +30,18 @@ func TestV1Vectors(t *testing.T) {
 	}
 }
 
+func TestDecimalDigits(t *testing.T) {
+	zeroDigits := (ID{}).decimalDigits()
+	if got := string(zeroDigits[:]); got != "000000000000000000000000000000000000000" {
+		t.Fatal(got)
+	}
+	max := ID{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+	maxDigits := max.decimalDigits()
+	if got := string(maxDigits[:]); got != "340282366920938463463374607431768211455" {
+		t.Fatal(got)
+	}
+}
+
 type fixedClock struct{ t time.Time }
 
 func (c fixedClock) Now() time.Time { return c.t }

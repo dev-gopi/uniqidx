@@ -35,8 +35,9 @@ func (id ID) Hex() string              { return hex.EncodeToString(id[:]) }
 func (id ID) Base32() string {
 	return base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(id[:])
 }
-func (id ID) Base64URL() string       { return base64.RawURLEncoding.EncodeToString(id[:]) }
-func (id ID) String() string          { return id.Text() }
+func (id ID) Base64URL() string { return base64.RawURLEncoding.EncodeToString(id[:]) }
+func (id ID) String() string    { return id.Text() }
+
 func parseBytes(b []byte) (ID, error) { return parseBytesV1(b) }
 func ParseHex(s string) (ID, error) {
 	if len(s) != 32 {

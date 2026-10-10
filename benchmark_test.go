@@ -29,3 +29,19 @@ func BenchmarkParseText(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkText(b *testing.B) {
+	id, _ := PackV1(1234567890, ModeOffline, Token69{Lo: 1}, 0)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = id.Text()
+	}
+}
+
+func BenchmarkNumeric(b *testing.B) {
+	id, _ := PackV1(1234567890, ModeOffline, Token69{Lo: 1}, 0)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = id.Numeric()
+	}
+}
