@@ -53,6 +53,28 @@ func TestV1VariantKeeps128BitSizeAndToken(t *testing.T) {
 	}
 }
 
+func TestVariantEncodingSeparatesIDs(t *testing.T) {
+	token := Token69{Hi: 3, Lo: 0x3456789abcdef012}
+	ids := make(map[ID]Variant, VariantExtendedRandom+1)
+	for variant := VariantStandard; variant <= VariantExtendedRandom; variant++ {
+		id, err := packV1(1234567890, ModeOffline, variant, token, 7)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if previous, exists := ids[id]; exists {
+			t.Fatalf("variant %d collides with variant %d", variant, previous)
+		}
+		ids[id] = variant
+	}
+	legacy, err := PackV1(1234567890, ModeOffline, token, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fields, err := legacy.Fields(); err != nil || fields.Variant != VariantStandard {
+		t.Fatalf("legacy fields = %#v, error = %v", fields, err)
+	}
+}
+
 func TestV1VariantValidation(t *testing.T) {
 	if _, err := packV1(1, ModeOffline, Variant(4), Token69{}, 0); err != ErrVariant {
 		t.Fatalf("error = %v, want %v", err, ErrVariant)

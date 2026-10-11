@@ -59,6 +59,58 @@ one.
   coordination model—not for a currently demonstrated storage or mixed-workload
   advantage.
 
+## Follow-up measurements (2026-10-11)
+
+The current working tree was measured on the same linux/amd64 host with
+`go test -run '^$' -bench='^BenchmarkNext(Coordinated|Variants|ParallelOffline|ParallelCoordinated)?$' -benchmem -count=10`.
+Each result below is the median of 10 repetitions:
+
+| Workload | Median | Allocations |
+|---|---:|---:|
+| Offline, standard, serial | 83.56 ns/op | 0 |
+| Coordinated, standard, serial | 86.68 ns/op | 0 |
+| Offline, standard, parallel | 139.55 ns/op | 0 |
+| Coordinated, standard, parallel | 138.65 ns/op | 0 |
+| Variant: Standard | 85.50 ns/op | 0 |
+| Variant: High Precision | 85.12 ns/op | 0 |
+| Variant: High Throughput | 84.57 ns/op | 0 |
+| Variant: Extended Random | 84.58 ns/op | 0 |
+
+The four variants are wire-compatible profiles over the same 44-bit millisecond
+timestamp, 69-bit token, and 10-bit sequence. No measurable throughput
+difference was observed, and the variant marker did not reduce token bits.
+The deterministic collision test confirms that all four variant encodings are
+distinct and that legacy `PackV1` IDs decode as `VariantStandard`.
+
+On PostgreSQL 16.15, using the same exact 16-byte payload in native `uuid` and
+`BYTEA`, 100,000-row tables produced:
+
+| Representation | ID index | Total table/index size |
+|---|---:|---:|
+| `BYTEA` | 4,079,616 bytes | 12,402,688 bytes |
+| `uuid` | 3,178,496 bytes | 10,682,368 bytes |
+
+The payload bytes were verified equal after conversion, and both types returned
+the same ordering for the tested values. Native `uuid` was about 22% smaller
+for the primary ID index and about 14% smaller for total relation size in this
+run. This is a storage/implementation observation, not a semantic claim that
+UniqID-X is an RFC UUID. If native UUID storage is selected, document that the
+column stores opaque 16-byte UniqID-X values and keep the application-level
+format validation.
+
+A server-side mixed workload of 50,000 deterministic select/update iterations
+was repeated 10 times per representation:
+
+| Representation | Median duration | Median iterations/s |
+|---|---:|---:|
+| `BYTEA` | 1,256.169 ms | 39,804 |
+| `uuid` | 1,061.300 ms | 47,112 |
+
+These mixed results used one database session and are not a substitute for
+multi-client production load; the unavailable host `pgbench` wrapper prevented
+the intended client-concurrency run. The Go benchmark separately measured
+parallel generator contention above.
+
 ## Next improvements to measure
 
 1. Run five to ten randomized/interleaved repetitions and report median plus

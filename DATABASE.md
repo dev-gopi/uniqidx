@@ -1,6 +1,11 @@
 # Database and API integration
 
-Store `ID` as exactly 16 raw bytes. Do not use UUID columns: UniqID-X is not an RFC UUID.
+Store `ID` as exactly 16 raw bytes. `BYTEA` is the default because UniqID-X is
+not an RFC UUID and the type communicates that semantic clearly. PostgreSQL's
+native `uuid` type also preserves the exact 16 bytes and byte ordering, and can
+be used when its smaller index footprint is more important than the semantic
+distinction. Treat that column as an opaque UniqID-X value and do not expose it
+as an RFC UUID.
 
 ```sql
 -- PostgreSQL
@@ -8,7 +13,18 @@ CREATE TABLE orders (
   id BYTEA PRIMARY KEY CHECK (octet_length(id) = 16),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+```
 
+An opaque native-UUID alternative for PostgreSQL is:
+
+```sql
+CREATE TABLE orders (
+  id UUID PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+```sql
 -- MySQL
 CREATE TABLE orders (
   id BINARY(16) NOT NULL PRIMARY KEY,
@@ -16,7 +32,12 @@ CREATE TABLE orders (
 );
 ```
 
-`ID.Value()` and `ID.Scan()` bind raw binary values through `database/sql`. JSON uses `MarshalText`, which emits canonical `UX1V-...` text. Never emit a 128-bit ID as a JSON number; JavaScript numeric values cannot represent it exactly.
+The application must still bind and validate the original `uniqidx.ID`; the
+database type does not validate the UniqID-X version, mode, variant, timestamp,
+token, or sequence fields. `ID.Value()` and `ID.Scan()` bind raw binary values
+through `database/sql`. JSON uses `MarshalText`, which emits canonical
+`UX1V-...` text. Never emit a 128-bit ID as a JSON number; JavaScript numeric
+values cannot represent it exactly.
 
 ## MongoDB
 

@@ -7,16 +7,79 @@ import (
 )
 
 func BenchmarkNext(b *testing.B) {
-	g, err := NewGenerator(context.Background(), Config{Mode: ModeOffline, MaxLogicalDrift: time.Hour})
+	benchmarkNext(b, ModeOffline, VariantStandard, nil)
+}
+
+func BenchmarkNextCoordinated(b *testing.B) {
+	benchmarkNext(b, ModeCoordinated, VariantStandard, benchmarkLeaseProvider())
+}
+
+func BenchmarkNextVariants(b *testing.B) {
+	for variant := VariantStandard; variant <= VariantExtendedRandom; variant++ {
+		b.Run(variant.String(), func(b *testing.B) {
+			benchmarkNext(b, ModeOffline, variant, nil)
+		})
+	}
+}
+
+func BenchmarkNextParallelOffline(b *testing.B) {
+	benchmarkNextParallel(b, ModeOffline, VariantStandard, nil)
+}
+
+func BenchmarkNextParallelCoordinated(b *testing.B) {
+	benchmarkNextParallel(b, ModeCoordinated, VariantStandard, benchmarkLeaseProvider())
+}
+
+func benchmarkLeaseProvider() LeaseProvider {
+	return staticLease{l: Lease{Token: Token69{Lo: 1}, ExpiresAt: time.Now().Add(time.Hour)}}
+}
+
+func benchmarkNext(b *testing.B, mode Mode, variant Variant, provider LeaseProvider) {
+	var leaseProvider LeaseProvider
+	if mode == ModeCoordinated {
+		leaseProvider = provider
+	}
+	g, err := NewGenerator(context.Background(), Config{
+		Mode:            mode,
+		Variant:         variant,
+		LeaseProvider:   leaseProvider,
+		MaxLogicalDrift: time.Hour,
+	})
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer g.Close(context.Background())
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if _, err := g.Next(context.Background()); err != nil {
 			b.Fatal(err)
 		}
 	}
+}
+
+func benchmarkNextParallel(b *testing.B, mode Mode, variant Variant, provider LeaseProvider) {
+	var leaseProvider LeaseProvider
+	if mode == ModeCoordinated {
+		leaseProvider = provider
+	}
+	g, err := NewGenerator(context.Background(), Config{
+		Mode:            mode,
+		Variant:         variant,
+		LeaseProvider:   leaseProvider,
+		MaxLogicalDrift: time.Hour,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer g.Close(context.Background())
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if _, err := g.Next(context.Background()); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }
 
 func BenchmarkParseText(b *testing.B) {
